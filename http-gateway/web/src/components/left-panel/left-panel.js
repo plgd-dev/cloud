@@ -1,8 +1,8 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 
-import logoBig from '@/assets/img/logo-big.svg'
-import logoSmall from '@/assets/img/logo-small.svg'
+import logoBig from '@/assets/img/logo-big.webp'
+import logoSmall from '@/assets/img/logo-small.png'
 import './left-panel.scss'
 
 export const LeftPanel = memo(({ children }) => {

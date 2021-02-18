@@ -27,13 +27,13 @@ $logo_container_height: 35px;
 
     .logo-big {
       display: block;
-      height: $logo_container_height;
+      height: $logo_container_height + 20px;
       margin-left: 10px;
     }
 
     .logo-small {
       display: none;
-      height: 27px;
+      height: $logo_container_height;
     }
   }
 }

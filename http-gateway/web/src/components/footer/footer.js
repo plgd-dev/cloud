@@ -10,6 +10,7 @@ export const Footer = memo(() => {
 
   return (
     <footer id="footer">
+      <div className="copyright">&copy;2021 Infinera Corporation.</div>
       <a
         href="https://github.com/plgd-dev/cloud/raw/master/http-gateway/swagger.yaml"
         target="_blank"

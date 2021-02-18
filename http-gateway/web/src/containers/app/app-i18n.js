@@ -3,7 +3,7 @@ import { defineMessages } from '@formatjs/intl'
 export const messages = defineMessages({
   defaultTitle: {
     id: 'app.defaultTitle',
-    defaultMessage: 'plgd Dashboard',
+    defaultMessage: 'Infinera Dashboard',
   },
   loading: {
     id: 'app.loading',
