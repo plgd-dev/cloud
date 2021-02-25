@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"time"
 )
 
@@ -26,4 +27,10 @@ type PersistenceTx interface {
 	Persist(d *AuthorizedDevice) error
 	Delete(deviceID, userID string) error
 	Close()
+}
+
+type Persistence = interface {
+	NewTransaction(ctx context.Context) PersistenceTx
+	Clear(ctx context.Context) error
+	Close(ctx context.Context) error
 }

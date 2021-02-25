@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/stretchr/testify/require"
 
+	"github.com/plgd-dev/cloud/authorization/persistence/cache"
 	"github.com/plgd-dev/cloud/authorization/persistence/mongodb"
 	"github.com/plgd-dev/cloud/authorization/provider"
 	"github.com/plgd-dev/cloud/authorization/service"
@@ -22,12 +24,11 @@ import (
 
 func newService(config service.Config, tlsConfig *tls.Config) (*service.Server, error) {
 	oauth := provider.NewPlgdProvider(config.Device, tlsConfig)
-	persistence, err := mongodb.NewStore(context.Background(), config.MongoDB, mongodb.WithTLS(tlsConfig))
+	mongo, err := mongodb.NewStore(context.Background(), config.MongoDB, mongodb.WithTLS(tlsConfig))
 	if err != nil {
 		return nil, err
 	}
-
-	s, err := service.New(config, persistence, oauth, oauth)
+	s, err := service.New(config, cache.New(mongo, config.Cache.ValidUntil), oauth, oauth)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create server cert manager %w", err)
 	}
@@ -40,6 +41,7 @@ func MakeConfig(t *testing.T) service.Config {
 	err := envconfig.Process("", &authCfg)
 	require.NoError(t, err)
 	authCfg.Addr = testCfg.AUTH_HOST
+	authCfg.Cache.ValidUntil = time.Hour
 	authCfg.HTTPAddr = testCfg.AUTH_HTTP_HOST
 	authCfg.Device.Provider = "plgd"
 	authCfg.Device.OAuth2.ClientID = oauthService.ClientTest

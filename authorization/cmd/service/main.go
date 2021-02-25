@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/kelseyhightower/envconfig"
+	"github.com/plgd-dev/cloud/authorization/persistence"
+	"github.com/plgd-dev/cloud/authorization/persistence/cache"
 	"github.com/plgd-dev/cloud/authorization/persistence/mongodb"
 	"github.com/plgd-dev/cloud/authorization/provider"
 	"github.com/plgd-dev/cloud/authorization/service"
@@ -27,7 +29,7 @@ func main() {
 
 	tlsConfig := dialCertManager.GetClientTLSConfig()
 
-	persistence, err := mongodb.NewStore(context.Background(), cfg.MongoDB, mongodb.WithTLS(tlsConfig))
+	mongo, err := mongodb.NewStore(context.Background(), cfg.MongoDB, mongodb.WithTLS(tlsConfig))
 	if err != nil {
 		log.Fatalf("cannot parse config: %v", err)
 	}
@@ -54,7 +56,12 @@ func main() {
 		Provider: "generic",
 		OAuth2:   cfg.SDK,
 	}, tlsConfig)
-	s, err := service.New(cfg, persistence, deviceProvider, sdkProvider)
+	var db persistence.Persistence
+	db = mongo
+	if cfg.Cache.Enabled {
+		db = cache.New(mongo, cfg.Cache.ValidUntil)
+	}
+	s, err := service.New(cfg, db, deviceProvider, sdkProvider)
 	if err != nil {
 		log.Fatalf("cannot parse config: %v", err)
 	}

@@ -189,6 +189,8 @@ DEVICE_OAUTH_ENDPOINT_TOKEN_URL=https://${FQDN_NGINX_HTTPS}/oauth/token \
 SDK_OAUTH_CLIENT_ID=test \
 SDK_OAUTH_ENDPOINT_AUTH_URL=https://${FQDN_NGINX_HTTPS}/oauth/token \
 SDK_OAUTH_AUDIENCE=${FQDN_NGINX_HTTPS} \
+CACHE_ENABLED=true \
+CACHE_VALIDUNTIL=1h \
 authorization >$LOGS_PATH/authorization.log 2>&1 &
 status=$?
 authorization_pid=$!
