@@ -147,9 +147,9 @@ func testSignUp(t *testing.T, deviceID string, co *tcp.ClientConn) service.CoapS
 	return signUpResp
 }
 
-func testSignIn(t *testing.T, r service.CoapSignUpResponse, co *tcp.ClientConn) service.CoapSignInResp {
+func testSignIn(t *testing.T, deviceID string, r service.CoapSignUpResponse, co *tcp.ClientConn) service.CoapSignInResp {
 	signInReq := service.CoapSignInReq{
-		DeviceID:    CertIdentity,
+		DeviceID:    deviceID,
 		UserID:      r.UserID,
 		AccessToken: r.AccessToken,
 		Login:       true,
@@ -182,7 +182,7 @@ func testSignIn(t *testing.T, r service.CoapSignUpResponse, co *tcp.ClientConn) 
 
 func testSignUpIn(t *testing.T, deviceID string, co *tcp.ClientConn) service.CoapSignInResp {
 	resp := testSignUp(t, deviceID, co)
-	return testSignIn(t, resp, co)
+	return testSignIn(t, deviceID, resp, co)
 }
 
 func testPostHandler(t *testing.T, path string, test testEl, co *tcp.ClientConn) {
@@ -314,7 +314,7 @@ func testCoapDial(t *testing.T, host string, withoutTLS ...bool) *tcp.ClientConn
 	if len(withoutTLS) > 0 {
 		tlsConfig = nil
 	}
-	conn, err := tcp.Dial(host, tcp.WithTLS(tlsConfig), tcp.WithHandlerFunc(func(w *tcp.ResponseWriter, r *pool.Message) {
+	conn, err := tcp.Dial(host, tcp.WithMaxMessageSize(256*1024), tcp.WithTLS(tlsConfig), tcp.WithHeartBeat(time.Second*30), tcp.WithBlockwise(false, 0, 0), tcp.WithHandlerFunc(func(w *tcp.ResponseWriter, r *pool.Message) {
 		switch r.Code() {
 		case coapCodes.POST:
 			w.SetResponse(codes.Changed, message.TextPlain, bytes.NewReader([]byte("hello world")))

@@ -76,10 +76,6 @@ func signInPostHandler(req *mux.Message, client *Client, signIn CoapSignInReq) {
 	coapResp := CoapSignInResp{
 		ExpiresIn: resp.ExpiresIn,
 	}
-	var expired time.Time
-	if resp.ExpiresIn > 0 {
-		expired = time.Now().Add(time.Second * time.Duration(resp.ExpiresIn))
-	}
 
 	accept := coap.GetAccept(req.Options)
 	encode, err := coap.GetEncoder(accept)
@@ -93,17 +89,23 @@ func signInPostHandler(req *mux.Message, client *Client, signIn CoapSignInReq) {
 		return
 	}
 
-	authCtx := authorizationContext{
-		DeviceID:    signIn.DeviceID,
-		UserID:      signIn.UserID,
-		AccessToken: signIn.AccessToken,
-		Expire:      expired,
-	}
 	serviceToken, err := client.server.oauthMgr.GetToken(req.Context)
 	if err != nil {
 		client.logAndWriteErrorResponse(fmt.Errorf("cannot get service token: %w", err), coapCodes.InternalServerError, req.Token)
 		client.Close()
 		return
+	}
+
+	var expired time.Time
+	if resp.ExpiresIn > 0 {
+		expired = time.Now().Add(time.Second * time.Duration(resp.ExpiresIn))
+	}
+
+	authCtx := authorizationContext{
+		DeviceID:    signIn.DeviceID,
+		UserID:      signIn.UserID,
+		AccessToken: signIn.AccessToken,
+		Expire:      expired,
 	}
 	req.Context = kitNetGrpc.CtxWithOwner(kitNetGrpc.CtxWithToken(req.Context, serviceToken.AccessToken), authCtx.GetUserID())
 	err = deviceStatus.Publish(req.Context, client.server.raClient, signIn.DeviceID, &commands.CommandMetadata{

@@ -3,28 +3,39 @@ module github.com/plgd-dev/cloud
 go 1.14
 
 require (
+	github.com/Masterminds/goutils v1.1.1 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
+	github.com/aokoli/goutils v1.1.1 // indirect
 	github.com/buaazp/fasthttprouter v0.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/envoyproxy/protoc-gen-validate v0.5.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/gofrs/uuid v3.3.0+incompatible
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.2
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2
+	github.com/huandu/xstrings v1.3.2 // indirect
+	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jtacoma/uritemplates v1.0.0
 	github.com/karrick/tparse/v2 v2.8.2
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lestrrat-go/jwx v1.0.5
+	github.com/mitchellh/copystructure v1.1.2 // indirect
+	github.com/mwitkow/go-proto-validators v0.3.2 // indirect
 	github.com/nats-io/nats.go v1.10.1-0.20201111151633-9e1f4a0d80d8
 	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/plgd-dev/go-coap/v2 v2.3.1-0.20210204203130-38a043760811
 	github.com/plgd-dev/kit v0.0.0-20210205135220-6c16c4ac0fd5
 	github.com/plgd-dev/sdk v0.0.0-20201105135357-8507ce8ec280
+	github.com/pseudomuto/protoc-gen-doc v1.4.1 // indirect
 	github.com/smallstep/certificates v0.13.4-0.20191007194430-e2858e17b094
 	github.com/smallstep/nosql v0.2.0
 	github.com/stretchr/testify v1.6.1
@@ -32,12 +43,13 @@ require (
 	go.mongodb.org/mongo-driver v1.4.2
 	go.uber.org/atomic v1.7.0
 	go.uber.org/zap v1.15.0
+	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2 // indirect
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
-	golang.org/x/sync v0.0.0-20201008141435-b3e1573b7520
-	google.golang.org/genproto v0.0.0-20200825200019-8632dd797987
-	google.golang.org/grpc v1.34.0
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	google.golang.org/genproto v0.0.0-20210413151531-c14fb6ef47c3
+	google.golang.org/grpc v1.36.1
 	google.golang.org/grpc/examples v0.0.0-20210129004707-0bc741730b81 // indirect
-	google.golang.org/protobuf v1.25.0
+	google.golang.org/protobuf v1.26.0
 	gopkg.in/yaml.v2 v2.3.0
 )
 

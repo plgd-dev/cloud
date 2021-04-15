@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -26,12 +27,21 @@ func MakeConfig(t *testing.T) refImpl.Config {
 	gwCfg.Service.OAuth.ClientID = testCfg.OAUTH_MANAGER_CLIENT_ID
 	gwCfg.Service.OAuth.Endpoint.TokenURL = testCfg.OAUTH_MANAGER_ENDPOINT_TOKENURL
 	gwCfg.Service.OAuth.Audience = testCfg.OAUTH_MANAGER_AUDIENCE
-	gwCfg.Service.HeartBeat = time.Millisecond * 300
+	gwCfg.Service.HeartBeat = time.Second * 4
+	gwCfg.Service.KeepaliveTimeoutConnection = time.Second * 90
+	gwCfg.Service.TaskQueue.GoroutinePoolSize = 1600
+	gwCfg.Service.TaskQueue.Size = 2097152
+	gwCfg.Service.DeviceStatusExpiration.ExpiresIn = time.Hour * 24
+	gwCfg.Service.MaxMessageSize = 256 * 1024
+	gwCfg.Service.DisableBlockWiseTransfer = true
 
 	gwCfg.Listen.File.TLSCertFileName = os.Getenv("TEST_COAP_GW_OVERWRITE_LISTEN_FILE_CERT_NAME")
 	gwCfg.Listen.File.TLSKeyFileName = os.Getenv("TEST_COAP_GW_OVERWRITE_LISTEN_FILE_KEY_NAME")
 	gwCfg.Listen.File.DisableVerifyClientCertificate = true
 	gwCfg.Service.LogMessages = true
+
+	fmt.Printf("CFG\n%v\n", gwCfg)
+
 	return gwCfg
 }
 

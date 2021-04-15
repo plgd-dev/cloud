@@ -21,8 +21,8 @@ func MakeConfig(t *testing.T) refImpl.Config {
 	rdCfg.Service.OAuth.ClientID = testCfg.OAUTH_MANAGER_CLIENT_ID
 	rdCfg.Service.OAuth.Endpoint.TokenURL = testCfg.OAUTH_MANAGER_ENDPOINT_TOKENURL
 	rdCfg.Service.OAuth.Audience = testCfg.OAUTH_MANAGER_AUDIENCE
-	rdCfg.UserDevicesManagerTickFrequency = time.Millisecond * 500
-	rdCfg.UserDevicesManagerExpiration = time.Millisecond * 500
+	rdCfg.UserDevicesManagerTickFrequency = time.Second * 1
+	rdCfg.UserDevicesManagerExpiration = time.Second * 15
 	rdCfg.JwksURL = testCfg.JWKS_URL
 	rdCfg.Log.Debug = true
 	return rdCfg

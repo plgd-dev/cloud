@@ -106,10 +106,10 @@ func New(config Config, dialCertManager DialCertManager, listenCertManager Liste
 		log.Fatalf("cannot create eventbus subscriber: %v", err)
 	}
 
-	oicPingCache := cache.New(cache.NoExpiration, time.Minute)
+	oicPingCache := cache.New(cache.NoExpiration, 60*time.Minute)
 	oicPingCache.OnEvicted(pingOnEvicted)
 
-	expirationClientCache := cache.New(cache.NoExpiration, time.Minute)
+	expirationClientCache := cache.New(cache.NoExpiration, 60*time.Minute)
 	expirationClientCache.OnEvicted(func(deviceID string, c interface{}) {
 		if c == nil {
 			return
