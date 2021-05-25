@@ -43,7 +43,6 @@ func (eh *mockEventHandler) Handle(ctx context.Context, iter eventstore.Iter) er
 
 func TestProjection(t *testing.T) {
 	numEventsInSnapshot := 1
-	waitForSubscription := time.Second * 1
 
 	topics := []string{"test_projection_topic0_" + uuid.Must(uuid.NewV4()).String(), "test_projection_topic1_" + uuid.Must(uuid.NewV4()).String()}
 	logger, err := log.NewLogger(log.Config{})
@@ -118,26 +117,26 @@ func TestProjection(t *testing.T) {
 	}
 
 	a1, err := aggregate.NewAggregate(res1.DeviceId, res1.ToUUID(), aggregate.NewDefaultRetryFunc(1), numEventsInSnapshot, store, func(context.Context) (aggregate.AggregateModel, error) {
-		return &events.ResourceStateSnapshotTaken{
+		return &events.ResourceStateSnapshotTakenModel{ResourceStateSnapshotTaken: &events.ResourceStateSnapshotTaken{
 			ResourceId:    &res1,
 			EventMetadata: &events.EventMetadata{},
-		}, nil
+		}}, nil
 	}, nil)
 	require.NoError(t, err)
 
-	evs, err := a1.HandleCommand(ctx, &commandPub1)
+	evs, _, err := a1.HandleCommand(ctx, &commandPub1)
 	require.NoError(t, err)
 	require.NotNil(t, evs)
 
 	a2, err := aggregate.NewAggregate(res2.DeviceId, res2.ToUUID(), aggregate.NewDefaultRetryFunc(1), numEventsInSnapshot, store, func(context.Context) (aggregate.AggregateModel, error) {
-		return &events.ResourceStateSnapshotTaken{
+		return &events.ResourceStateSnapshotTakenModel{ResourceStateSnapshotTaken: &events.ResourceStateSnapshotTaken{
 			ResourceId:    &res2,
 			EventMetadata: &events.EventMetadata{},
-		}, nil
+		}}, nil
 	}, nil)
 	require.NoError(t, err)
 
-	evs, err = a2.HandleCommand(ctx, &commandPub2)
+	evs, _, err = a2.HandleCommand(ctx, &commandPub2)
 	require.NoError(t, err)
 	require.NotNil(t, evs)
 
@@ -161,16 +160,14 @@ func TestProjection(t *testing.T) {
 	err = projection.SubscribeTo(topics)
 	require.NoError(t, err)
 
-	time.Sleep(waitForSubscription)
-
 	a3, err := aggregate.NewAggregate(res3.DeviceId, res3.ToUUID(), aggregate.NewDefaultRetryFunc(1), numEventsInSnapshot, store, func(context.Context) (aggregate.AggregateModel, error) {
-		return &events.ResourceStateSnapshotTaken{
+		return &events.ResourceStateSnapshotTakenModel{ResourceStateSnapshotTaken: &events.ResourceStateSnapshotTaken{
 			ResourceId:    &res3,
 			EventMetadata: &events.EventMetadata{},
-		}, nil
+		}}, nil
 	}, nil)
 
-	evs, err = a3.HandleCommand(ctx, &commandPub3)
+	evs, _, err = a3.HandleCommand(ctx, &commandPub3)
 	require.NoError(t, err)
 	require.NotNil(t, evs)
 	for _, e := range evs {
@@ -183,8 +180,6 @@ func TestProjection(t *testing.T) {
 
 	err = projection.SubscribeTo(topics[0:1])
 	require.NoError(t, err)
-
-	time.Sleep(waitForSubscription)
 
 	err = projection.Forget([]eventstore.SnapshotQuery{{
 		GroupID:     res3.DeviceId,
@@ -200,9 +195,7 @@ func TestProjection(t *testing.T) {
 	err = projection.SubscribeTo(nil)
 	require.NoError(t, err)
 
-	time.Sleep(waitForSubscription)
-
-	evs, err = a1.HandleCommand(ctx, &commandPub1)
+	evs, _, err = a1.HandleCommand(ctx, &commandPub1)
 	require.NoError(t, err)
 	require.NotNil(t, evs)
 	for _, e := range evs {

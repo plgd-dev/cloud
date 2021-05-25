@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"google.golang.org/grpc/status"
 
@@ -22,8 +23,10 @@ type aggregate struct {
 	eventstore EventStore
 }
 
-func ResourceStateFactoryModel(ctx context.Context) (cqrsAggregate.AggregateModel, error) {
-	return raEvents.NewResourceStateSnapshotTaken(), nil
+func CreateResourceStateFactoryModel(commandsExpiration time.Duration) func(ctx context.Context) (cqrsAggregate.AggregateModel, error) {
+	return func(ctx context.Context) (cqrsAggregate.AggregateModel, error) {
+		return raEvents.NewResourceStateSnapshotTaken(commandsExpiration), nil
+	}
 }
 
 func ResourceLinksFactoryModel(ctx context.Context) (cqrsAggregate.AggregateModel, error) {
@@ -255,183 +258,196 @@ func (a *aggregate) ResourceID() string {
 }
 
 // HandlePublishResource handles a command PublishResourceLinks
-func (a *aggregate) PublishResourceLinks(ctx context.Context, request *commands.PublishResourceLinksRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) PublishResourceLinks(ctx context.Context, request *commands.PublishResourceLinksRequest) (events []eventstore.Event, response *commands.PublishResourceLinksResponse, err error) {
 	if err = validatePublish(request); err != nil {
 		err = fmt.Errorf("invalid publish resource links command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process publish resource links command: %w", err)
 		return
 	}
 
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.PublishResourceLinksResponse)
 	return
 }
 
 // HandleUnpublishResource handles a command UnpublishResourceLinks
-func (a *aggregate) UnpublishResourceLinks(ctx context.Context, request *commands.UnpublishResourceLinksRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) UnpublishResourceLinks(ctx context.Context, request *commands.UnpublishResourceLinksRequest) (events []eventstore.Event, response *commands.UnpublishResourceLinksResponse, err error) {
 	if err = validateUnpublish(request); err != nil {
 		err = fmt.Errorf("invalid unpublish resource links command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process unpublish resource links command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.UnpublishResourceLinksResponse)
 	return
 }
 
 // NotifyContentChanged handles a command NotifyContentChanged
-func (a *aggregate) NotifyResourceChanged(ctx context.Context, request *commands.NotifyResourceChangedRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) NotifyResourceChanged(ctx context.Context, request *commands.NotifyResourceChangedRequest) (events []eventstore.Event, response *commands.NotifyResourceChangedResponse, err error) {
 	if err = validateNotifyContentChanged(request); err != nil {
 		err = fmt.Errorf("invalid notify content changed command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process notify content changed command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
+	response = resp.(*commands.NotifyResourceChangedResponse)
 	return
 }
 
 // HandleUpdateResourceContent handles a command UpdateResource
-func (a *aggregate) UpdateResource(ctx context.Context, request *commands.UpdateResourceRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) UpdateResource(ctx context.Context, request *commands.UpdateResourceRequest) (events []eventstore.Event, response *commands.UpdateResourceResponse, err error) {
 	if err = validateUpdateResourceContent(request); err != nil {
 		err = fmt.Errorf("invalid update resource content command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process update resource content command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.UpdateResourceResponse)
 	return
 }
 
-func (a *aggregate) ConfirmResourceUpdate(ctx context.Context, request *commands.ConfirmResourceUpdateRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) ConfirmResourceUpdate(ctx context.Context, request *commands.ConfirmResourceUpdateRequest) (events []eventstore.Event, response *commands.ConfirmResourceUpdateResponse, err error) {
 	if err = validateConfirmResourceUpdate(request); err != nil {
 		err = fmt.Errorf("invalid update resource content notification command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process update resource content notification command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.ConfirmResourceUpdateResponse)
 	return
 }
 
 // RetrieveResource handles a command RetriveResource
-func (a *aggregate) RetrieveResource(ctx context.Context, request *commands.RetrieveResourceRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) RetrieveResource(ctx context.Context, request *commands.RetrieveResourceRequest) (events []eventstore.Event, response *commands.RetrieveResourceResponse, err error) {
 	if err = validateRetrieveResource(request); err != nil {
 		err = fmt.Errorf("invalid retrieve resource content command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process retrieve resource content command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.RetrieveResourceResponse)
 	return
 }
 
-func (a *aggregate) ConfirmResourceRetrieve(ctx context.Context, request *commands.ConfirmResourceRetrieveRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) ConfirmResourceRetrieve(ctx context.Context, request *commands.ConfirmResourceRetrieveRequest) (events []eventstore.Event, response *commands.ConfirmResourceRetrieveResponse, err error) {
 	if err = validateConfirmResourceRetrieve(request); err != nil {
 		err = fmt.Errorf("invalid retrieve resource content notification command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process retrieve resource content notification command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
+	response = resp.(*commands.ConfirmResourceRetrieveResponse)
 	return
 }
 
 // DeleteResource handles a command DeleteResource
-func (a *aggregate) DeleteResource(ctx context.Context, request *commands.DeleteResourceRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) DeleteResource(ctx context.Context, request *commands.DeleteResourceRequest) (events []eventstore.Event, response *commands.DeleteResourceResponse, err error) {
 	if err = validateDeleteResource(request); err != nil {
 		err = fmt.Errorf("invalid delete resource content command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process delete resource content command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.DeleteResourceResponse)
 	return
 }
 
-func (a *aggregate) ConfirmResourceDelete(ctx context.Context, request *commands.ConfirmResourceDeleteRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) ConfirmResourceDelete(ctx context.Context, request *commands.ConfirmResourceDeleteRequest) (events []eventstore.Event, response *commands.ConfirmResourceDeleteResponse, err error) {
 	if err = validateConfirmResourceDelete(request); err != nil {
 		err = fmt.Errorf("invalid delete resource content notification command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process delete resource content notification command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.ConfirmResourceDeleteResponse)
 	return
 }
 
 // CreateResource handles a command CreateResource
-func (a *aggregate) CreateResource(ctx context.Context, request *commands.CreateResourceRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) CreateResource(ctx context.Context, request *commands.CreateResourceRequest) (events []eventstore.Event, response *commands.CreateResourceResponse, err error) {
 	if err = validateCreateResource(request); err != nil {
 		err = fmt.Errorf("invalid create resource content command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process create resource content command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.CreateResourceResponse)
 	return
 }
 
-func (a *aggregate) ConfirmResourceCreate(ctx context.Context, request *commands.ConfirmResourceCreateRequest) (events []eventstore.Event, err error) {
+func (a *aggregate) ConfirmResourceCreate(ctx context.Context, request *commands.ConfirmResourceCreateRequest) (events []eventstore.Event, response *commands.ConfirmResourceCreateResponse, err error) {
 	if err = validateConfirmResourceCreate(request); err != nil {
 		err = fmt.Errorf("invalid create resource content notification command: %w", err)
 		return
 	}
 
-	events, err = a.ag.HandleCommand(ctx, request)
+	var resp interface{}
+	events, resp, err = a.ag.HandleCommand(ctx, request)
 	if err != nil {
 		err = fmt.Errorf("unable to process create resource content notification command: %w", err)
 		return
 	}
 	cleanUpToSnapshot(ctx, a, events)
-
+	response = resp.(*commands.ConfirmResourceCreateResponse)
 	return
 }

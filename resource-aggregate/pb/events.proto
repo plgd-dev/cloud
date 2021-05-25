@@ -50,6 +50,8 @@ message ResourceUpdatePending {
     Content content = 4;
     AuditContext audit_context = 5;
     EventMetadata event_metadata = 6;
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 7;
 }
 
 message ResourceUpdated {
@@ -65,6 +67,8 @@ message ResourceRetrievePending {
     string resource_interface = 2;
     AuditContext audit_context = 3;
     EventMetadata event_metadata = 4;
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 5;
 }
 
 message ResourceRetrieved {
@@ -77,6 +81,8 @@ message ResourceRetrieved {
 
 message ResourceDeletePending {
     ResourceId resource_id = 1;
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 2;
     AuditContext audit_context = 100;
     EventMetadata event_metadata = 101;
 }
@@ -92,6 +98,8 @@ message ResourceDeleted {
 message ResourceCreatePending {
     ResourceId resource_id = 1;
     Content content = 2;
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 3;
     AuditContext audit_context = 100;
     EventMetadata event_metadata = 101;
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/plgd-dev/cloud/pkg/log"
@@ -62,7 +63,7 @@ func Test_parallelRequest(t *testing.T) {
 
 	newAggragate := func(deviceID, href string) *aggregate.Aggregate {
 		a, err := aggregate.NewAggregate(deviceID, commands.NewResourceID(deviceID, href).ToUUID(), aggregate.NewDefaultRetryFunc(64), 16, store, func(context.Context) (aggregate.AggregateModel, error) {
-			ev := events.NewResourceStateSnapshotTaken()
+			ev := events.NewResourceStateSnapshotTaken(time.Second)
 			ev.ResourceId = commands.NewResourceID(deviceID, href)
 			return ev, nil
 		}, nil)
@@ -93,12 +94,13 @@ func Test_parallelRequest(t *testing.T) {
 					Status: commands.Status_OK,
 				}
 				aggr := newAggragate(commandContentChanged.GetResourceId().GetDeviceId(), commandContentChanged.GetResourceId().GetHref())
-				events, err := aggr.HandleCommand(ctx, &commandContentChanged)
+				events, response, err := aggr.HandleCommand(ctx, &commandContentChanged)
 				if err != nil {
 					anyError.Store(true)
 					require.NoError(t, err)
 					return
 				}
+				require.NotEmpty(t, response)
 				cleanUpToSnapshot(ctx, t, store, events)
 			}
 		}()

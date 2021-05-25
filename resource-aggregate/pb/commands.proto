@@ -162,12 +162,16 @@ message UpdateResourceRequest {
     string correlation_id = 2;
     Content content = 3;
     string resource_interface = 4;
+    // how long command is valid in miliseconds, 0 means use a limit from resource-aggregate configuration, if it is exceeded the limit, it will use the limit.
+    uint64 expiration = 5; 
     CommandMetadata command_metadata = 100;
 }
 
 message UpdateResourceResponse {
-    AuditContext audit_context = 1;
-}
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 1;
+    AuditContext audit_context = 100;
+}   
 
 message ConfirmResourceUpdateRequest {
     ResourceId resource_id = 1;
@@ -225,10 +229,14 @@ message RetrieveResourceRequest {
     ResourceId resource_id = 1;
     string correlation_id = 2;
     string resource_interface = 3;
+    // how long command is valid in miliseconds, 0 means use a limit from resource-aggregate configuration, if it is exceeded the limit, it will use the limit.
+    uint64 expiration = 4;
     CommandMetadata command_metadata = 100;
 }
 
 message RetrieveResourceResponse {
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 1;
     AuditContext audit_context = 100;
 }
 
@@ -295,10 +303,14 @@ Delete Resource
 message DeleteResourceRequest {
     ResourceId resource_id = 1;
     string correlation_id = 2;
+    // how long command is valid in miliseconds, 0 means use a limit from resource-aggregate configuration, if it is exceeded the limit, it will use the limit.
+    uint64 expiration = 3; 
     CommandMetadata command_metadata = 100;
 }
 
 message DeleteResourceResponse {
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 1;
     AuditContext audit_context = 100;
 }
 
@@ -366,10 +378,14 @@ message CreateResourceRequest {
     ResourceId resource_id = 1;
     string correlation_id = 2;
     Content content = 3;
+    // how long command is valid in miliseconds, 0 means use a limit from resource-aggregate configuration, if it is exceeded the limit, it will use the limit.
+    uint64 expiration = 4; 
     CommandMetadata command_metadata = 100;
 }
 
 message CreateResourceResponse {
+    // UnixNano (https://golang.org/pkg/time/#Time.UnixNano) time when command is considered as expired.
+    int64 deadline = 1;
     AuditContext audit_context = 100;
 }
 

@@ -3,6 +3,7 @@ package projection
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/plgd-dev/cloud/resource-aggregate/commands"
 	"github.com/plgd-dev/cloud/resource-aggregate/cqrs/eventstore"
@@ -661,7 +662,7 @@ func TestResourceStateProjection_Models(t *testing.T) {
 		eventstore,
 		nil,
 		func(ctx context.Context, groupID, aggregateID string) (cqrsEventStore.Model, error) {
-			return events.NewResourceStateSnapshotTaken(), nil
+			return events.NewResourceStateSnapshotTaken(time.Second), nil
 		},
 	)
 	assert.NoError(t, err)
@@ -674,12 +675,12 @@ func TestResourceStateProjection_Models(t *testing.T) {
 
 			mapWant := make(map[string]*events.ResourceStateSnapshotTaken)
 			for _, r := range tt.want {
-				m := r.(*events.ResourceStateSnapshotTaken)
+				m := r.(*events.ResourceStateSnapshotTakenModel).ResourceStateSnapshotTaken
 				mapWant[m.GroupID()] = m
 			}
 			mapGot := make(map[string]*events.ResourceStateSnapshotTaken)
 			for _, r := range got {
-				m := r.(*events.ResourceStateSnapshotTaken)
+				m := r.(*events.ResourceStateSnapshotTakenModel).ResourceStateSnapshotTaken
 				mapGot[m.GroupID()] = m
 			}
 
@@ -720,7 +721,7 @@ func TestResourceProjection_ForceUpdate(t *testing.T) {
 		eventstore,
 		nil,
 		func(ctx context.Context, groupID, aggregateID string) (cqrsEventStore.Model, error) {
-			return events.NewResourceStateSnapshotTaken(), nil
+			return events.NewResourceStateSnapshotTaken(time.Second), nil
 		},
 	)
 	assert.NoError(t, err)

@@ -36,6 +36,8 @@ clients:
     snapshotThreshold: 16
     # limits number of try to store event
     occMaxRetry: 8
+    # limits maximum expiration time of commands
+    commandsExpiration: 10s
     mongoDB:
       uri:
       database: eventStore

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/plgd-dev/go-coap/v2/message"
 
@@ -94,7 +95,7 @@ func TestAggregateHandle_PublishResourceLinks(t *testing.T) {
 		tfunc := func(t *testing.T) {
 			ag, err := service.NewAggregate(commands.NewResourceID(tt.args.request.GetDeviceId(), commands.ResourceLinksHref), 10, eventstore, service.ResourceLinksFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
 			require.NoError(t, err)
-			events, err := ag.PublishResourceLinks(kitNetGrpc.CtxWithIncomingOwner(ctx, tt.args.userID), tt.args.request)
+			events, _, err := ag.PublishResourceLinks(kitNetGrpc.CtxWithIncomingOwner(ctx, tt.args.userID), tt.args.request)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -115,7 +116,7 @@ func testHandlePublishResource(t *testing.T, ctx context.Context, publisher *pub
 
 	ag, err := service.NewAggregate(commands.NewResourceID(pc.GetDeviceId(), commands.ResourceLinksHref), 10, eventstore, service.ResourceLinksFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
-	events, err := ag.PublishResourceLinks(ctx, pc)
+	events, _, err := ag.PublishResourceLinks(ctx, pc)
 	if hasErr {
 		require.Error(t, err)
 		s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -158,21 +159,21 @@ func TestAggregateDuplicitPublishResource(t *testing.T) {
 	require.NoError(t, err)
 	pc1 := testMakePublishResourceRequest(deviceID, []string{resourceID})
 
-	events, err := ag.PublishResourceLinks(ctx, pc1)
+	events, _, err := ag.PublishResourceLinks(ctx, pc1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(events))
 
 	ag2, err := service.NewAggregate(commands.NewResourceID(deviceID, commands.ResourceLinksHref), 10, eventstore, service.ResourceLinksFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
 	require.NoError(t, err)
 	pc2 := testMakePublishResourceRequest(deviceID, []string{resourceID})
-	events, err = ag2.PublishResourceLinks(ctx, pc2)
+	events, _, err = ag2.PublishResourceLinks(ctx, pc2)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(events))
 
 	ag3, err := service.NewAggregate(commands.NewResourceID(deviceID, commands.ResourceLinksHref), 10, eventstore, service.ResourceLinksFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
 	require.NoError(t, err)
 	pc3 := testMakePublishResourceRequest(deviceID, []string{resourceID, resourceID, resourceID})
-	events, err = ag3.PublishResourceLinks(ctx, pc3)
+	events, _, err = ag3.PublishResourceLinks(ctx, pc3)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(events))
 }
@@ -212,13 +213,13 @@ func TestAggregateHandleUnpublishResource(t *testing.T) {
 
 	ag, err := service.NewAggregate(commands.NewResourceID(pc.GetDeviceId(), commands.ResourceLinksHref), 10, eventstore, service.ResourceLinksFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
-	events, err := ag.UnpublishResourceLinks(ctx, pc)
+	events, _, err := ag.UnpublishResourceLinks(ctx, pc)
 	assert.NoError(t, err)
 
 	err = service.PublishEvents(ctx, publisher, deviceID, ag.ResourceID(), events)
 	assert.NoError(t, err)
 
-	events, err = ag.UnpublishResourceLinks(ctx, pc)
+	events, _, err = ag.UnpublishResourceLinks(ctx, pc)
 	assert.NoError(t, err)
 }
 
@@ -258,7 +259,7 @@ func TestAggregateHandleUnpublishAllResources(t *testing.T) {
 
 	ag, err := service.NewAggregate(commands.NewResourceID(pc.GetDeviceId(), commands.ResourceLinksHref), 10, eventstore, service.ResourceLinksFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
-	events, err := ag.UnpublishResourceLinks(ctx, pc)
+	events, _, err := ag.UnpublishResourceLinks(ctx, pc)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(events))
 
@@ -269,7 +270,7 @@ func TestAggregateHandleUnpublishAllResources(t *testing.T) {
 	err = service.PublishEvents(ctx, publisher, deviceID, ag.ResourceID(), events)
 	assert.NoError(t, err)
 
-	events, err = ag.UnpublishResourceLinks(ctx, pc)
+	events, _, err = ag.UnpublishResourceLinks(ctx, pc)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(events))
 	assert.Equal(t, []string{}, (events[0].(*raEvents.ResourceLinksUnpublished)).Hrefs)
@@ -311,7 +312,7 @@ func TestAggregateHandleUnpublishResourceSubset(t *testing.T) {
 	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, commands.ResourceLinksHref), 10, eventstore, service.ResourceLinksFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 	pc := testMakeUnpublishResourceRequest(deviceID, []string{resourceID1, resourceID3})
-	events, err := ag.UnpublishResourceLinks(ctx, pc)
+	events, _, err := ag.UnpublishResourceLinks(ctx, pc)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(events))
 	assert.Equal(t, []string{resourceID1, resourceID3}, (events[0].(*raEvents.ResourceLinksUnpublished)).Hrefs)
@@ -320,7 +321,7 @@ func TestAggregateHandleUnpublishResourceSubset(t *testing.T) {
 	assert.NoError(t, err)
 
 	pc = testMakeUnpublishResourceRequest(deviceID, []string{resourceID1, resourceID4, resourceID4})
-	events, err = ag.UnpublishResourceLinks(ctx, pc)
+	events, _, err = ag.UnpublishResourceLinks(ctx, pc)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(events))
 	assert.Equal(t, []string{resourceID4}, (events[0].(*raEvents.ResourceLinksUnpublished)).Hrefs)
@@ -606,12 +607,12 @@ func Test_aggregate_HandleNotifyContentChanged(t *testing.T) {
 
 	testHandlePublishResource(t, ctx, publisher, eventstore, userID, deviceID, []string{resourceID}, codes.OK, false)
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotEvents, err := ag.NotifyResourceChanged(ctx, tt.args.req)
+			gotEvents, _, err := ag.NotifyResourceChanged(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -690,17 +691,17 @@ func Test_aggregate_HandleUpdateResourceContent(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
 
-			gotEvents, err := ag.UpdateResource(ctx, tt.args.req)
+			gotEvents, _, err := ag.UpdateResource(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -770,21 +771,21 @@ func Test_aggregate_HandleConfirmResourceUpdate(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	require.NoError(t, err)
 
-	_, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
+	_, _, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
 	require.NoError(t, err)
-	_, err = ag.UpdateResource(ctx, testMakeUpdateResourceRequest(deviceID, resourceID, "", "123"))
+	_, _, err = ag.UpdateResource(ctx, testMakeUpdateResourceRequest(deviceID, resourceID, "", "123"))
 	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
-			gotEvents, err := ag.ConfirmResourceUpdate(ctx, tt.args.req)
+			gotEvents, _, err := ag.ConfirmResourceUpdate(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -854,16 +855,16 @@ func Test_aggregate_HandleRetrieveResource(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
-			gotEvents, err := ag.RetrieveResource(ctx, tt.args.req)
+			gotEvents, _, err := ag.RetrieveResource(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -933,21 +934,21 @@ func Test_aggregate_HandleNotifyResourceContentResourceProcessed(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
-	_, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
+	_, _, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
 	require.NoError(t, err)
-	_, err = ag.RetrieveResource(ctx, testMakeRetrieveResourceRequest(deviceID, resourceID, "123"))
+	_, _, err = ag.RetrieveResource(ctx, testMakeRetrieveResourceRequest(deviceID, resourceID, "123"))
 	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
-			gotEvents, err := ag.ConfirmResourceRetrieve(ctx, tt.args.req)
+			gotEvents, _, err := ag.ConfirmResourceRetrieve(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -1025,16 +1026,16 @@ func Test_aggregate_HandleDeleteResource(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
-			gotEvents, err := ag.DeleteResource(ctx, tt.args.req)
+			gotEvents, _, err := ag.DeleteResource(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -1105,21 +1106,21 @@ func Test_aggregate_HandleConfirmResourceDelete(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
-	_, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
+	_, _, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
 	require.NoError(t, err)
-	_, err = ag.DeleteResource(ctx, testMakeDeleteResourceRequest(deviceID, resourceID, "123"))
+	_, _, err = ag.DeleteResource(ctx, testMakeDeleteResourceRequest(deviceID, resourceID, "123"))
 	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
-			gotEvents, err := ag.ConfirmResourceDelete(ctx, tt.args.req)
+			gotEvents, _, err := ag.ConfirmResourceDelete(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -1190,16 +1191,16 @@ func Test_aggregate_HandleCreateResource(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
-			gotEvents, err := ag.CreateResource(ctx, tt.args.req)
+			gotEvents, _, err := ag.CreateResource(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))
@@ -1270,21 +1271,21 @@ func Test_aggregate_HandleConfirmResourceCreate(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.ResourceStateFactoryModel, cqrsAggregate.NewDefaultRetryFunc(1))
+	ag, err := service.NewAggregate(commands.NewResourceID(deviceID, resourceID), 10, eventstore, service.CreateResourceStateFactoryModel(time.Second), cqrsAggregate.NewDefaultRetryFunc(1))
 	assert.NoError(t, err)
 
-	_, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
+	_, _, err = ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(deviceID, resourceID, 0))
 	require.NoError(t, err)
-	_, err = ag.CreateResource(ctx, testMakeCreateResourceRequest(deviceID, resourceID, "123"))
+	_, _, err = ag.CreateResource(ctx, testMakeCreateResourceRequest(deviceID, resourceID, "123"))
 	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.args.req.GetResourceId().GetDeviceId() != "" && tt.args.req.GetResourceId().GetHref() != "" {
-				_, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
+				_, _, err := ag.NotifyResourceChanged(ctx, testMakeNotifyResourceChangedRequest(tt.args.req.GetResourceId().GetDeviceId(), tt.args.req.GetResourceId().GetHref(), 0))
 				require.NoError(t, err)
 			}
-			gotEvents, err := ag.ConfirmResourceCreate(ctx, tt.args.req)
+			gotEvents, _, err := ag.ConfirmResourceCreate(ctx, tt.args.req)
 			if tt.wantErr {
 				require.Error(t, err)
 				s, ok := status.FromError(kitNetGrpc.ForwardFromError(codes.Unknown, err))

@@ -83,17 +83,17 @@ func (e *Snapshot) Handle(ctx context.Context, iter eventstore.Iter) error {
 	return nil
 }
 
-func (e *Snapshot) HandleCommand(ctx context.Context, cmd Command, newVersion uint64) ([]eventstore.Event, error) {
+func (e *Snapshot) HandleCommand(ctx context.Context, cmd Command, newVersion uint64) ([]eventstore.Event, interface{}, error) {
 	switch req := cmd.(type) {
 	case *Publish:
-		return []eventstore.Event{&Published{DeviceId: req.DeviceId, Href: req.Href, EventVersion: newVersion}}, nil
+		return []eventstore.Event{&Published{DeviceId: req.DeviceId, Href: req.Href, EventVersion: newVersion}}, nil, nil
 	case *Unpublish:
 		if !e.IsPublished {
-			return nil, fmt.Errorf("not allowed to unpublish twice in tests")
+			return nil, nil, fmt.Errorf("not allowed to unpublish twice in tests")
 		}
-		return []eventstore.Event{&Unpublished{DeviceId: req.DeviceId, Href: req.Href, EventVersion: newVersion}}, nil
+		return []eventstore.Event{&Unpublished{DeviceId: req.DeviceId, Href: req.Href, EventVersion: newVersion}}, nil, nil
 	}
-	return nil, fmt.Errorf("unknown command %T", cmd)
+	return nil, nil, fmt.Errorf("unknown command %T", cmd)
 }
 
 func (e *Snapshot) TakeSnapshot(version uint64) (eventstore.Event, bool) {
@@ -186,42 +186,42 @@ func TestAggregate(t *testing.T) {
 	}
 
 	a := newAggragate(commandPub1.GetDeviceId(), commandPub1.GetHref())
-	ev, err := a.HandleCommand(ctx, &commandPub1)
+	ev, _, err := a.HandleCommand(ctx, &commandPub1)
 	require.NoError(t, err)
 	require.NotNil(t, ev)
 
 	b := newAggragate(commandPub1.GetDeviceId(), commandPub1.GetHref())
-	ev, err = b.HandleCommand(ctx, &commandPub1)
+	ev, _, err = b.HandleCommand(ctx, &commandPub1)
 	require.NoError(t, err)
 	require.NotNil(t, ev)
 
 	c := newAggragate(commandUnpub1.GetDeviceId(), commandUnpub1.GetHref())
-	ev, err = c.HandleCommand(ctx, &commandUnpub1)
+	ev, _, err = c.HandleCommand(ctx, &commandUnpub1)
 	require.NoError(t, err)
 	require.NotNil(t, ev)
 
 	d := newAggragate(commandUnpub1.GetDeviceId(), commandUnpub1.GetHref())
-	ev, err = d.HandleCommand(ctx, &commandUnpub1)
+	ev, _, err = d.HandleCommand(ctx, &commandUnpub1)
 	require.Error(t, err)
 	require.Nil(t, ev)
 
 	e := newAggragate(commandPub2.GetDeviceId(), commandPub2.GetHref())
-	ev, err = e.HandleCommand(ctx, &commandPub2)
+	ev, _, err = e.HandleCommand(ctx, &commandPub2)
 	require.NoError(t, err)
 	require.NotNil(t, ev)
 
 	f := newAggragate(commandUnpub2.GetDeviceId(), commandUnpub2.GetHref())
-	ev, err = f.HandleCommand(ctx, &commandUnpub2)
+	ev, _, err = f.HandleCommand(ctx, &commandUnpub2)
 	require.NoError(t, err)
 	require.NotNil(t, ev)
 
 	g := newAggragate(commandPub1.GetDeviceId(), commandPub1.GetHref())
-	ev, err = g.HandleCommand(ctx, &commandPub1)
+	ev, _, err = g.HandleCommand(ctx, &commandPub1)
 	require.NoError(t, err)
 	require.NotNil(t, ev)
 
 	h := newAggragate(commandUnpub1.GetDeviceId(), commandUnpub1.GetHref())
-	ev, err = h.HandleCommand(ctx, &commandUnpub1)
+	ev, _, err = h.HandleCommand(ctx, &commandUnpub1)
 	require.NoError(t, err)
 	require.NotNil(t, ev)
 
@@ -243,12 +243,12 @@ func TestAggregate(t *testing.T) {
 	amodel, err := newAggrModel(ctx, a.groupID, a.aggregateID, a.store, a.LogDebugfFunc, model)
 	require.NoError(t, err)
 
-	ev, concurrencyException, err := a.handleCommandWithAggrModel(ctx, &commandPub1, amodel)
+	ev, _, concurrencyException, err := a.handleCommandWithAggrModel(ctx, &commandPub1, amodel)
 	require.NoError(t, err)
 	require.False(t, concurrencyException)
 	require.NotNil(t, ev)
 
-	ev, concurrencyException, err = a.handleCommandWithAggrModel(ctx, &commandPub1, amodel)
+	ev, _, concurrencyException, err = a.handleCommandWithAggrModel(ctx, &commandPub1, amodel)
 	require.NoError(t, err)
 	require.True(t, concurrencyException)
 	require.Nil(t, ev)

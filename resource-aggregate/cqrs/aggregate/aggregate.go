@@ -16,7 +16,7 @@ type Command = interface{}
 type AggregateModel = interface {
 	eventstore.Model
 
-	HandleCommand(ctx context.Context, cmd Command, newVersion uint64) ([]eventstore.Event, error)
+	HandleCommand(ctx context.Context, cmd Command, newVersion uint64) (events []eventstore.Event, response interface{}, err error)
 	TakeSnapshot(version uint64) (snapshotEvent eventstore.Event, ok bool)
 	GroupID() string //defines group where model belows
 }
@@ -118,7 +118,7 @@ func (ah *aggrModel) GroupID() string {
 	return ah.model.GroupID()
 }
 
-func (ah *aggrModel) HandleCommand(ctx context.Context, cmd Command, newVersion uint64) ([]eventstore.Event, error) {
+func (ah *aggrModel) HandleCommand(ctx context.Context, cmd Command, newVersion uint64) ([]eventstore.Event, interface{}, error) {
 	return ah.model.HandleCommand(ctx, cmd, newVersion)
 }
 
@@ -162,7 +162,7 @@ func newAggrModel(ctx context.Context, groupID, aggregateID string, store events
 	return amodel, nil
 }
 
-func (a *Aggregate) handleCommandWithAggrModel(ctx context.Context, cmd Command, amodel *aggrModel) (events []eventstore.Event, concurrencyExcpetion bool, err error) {
+func (a *Aggregate) handleCommandWithAggrModel(ctx context.Context, cmd Command, amodel *aggrModel) (events []eventstore.Event, response interface{}, concurrencyExcpetion bool, err error) {
 	newVersion := amodel.lastVersion
 	if amodel.numEvents > 0 || amodel.lastVersion > 0 {
 		//increase version for event only when some events has been processed
@@ -174,92 +174,92 @@ func (a *Aggregate) handleCommandWithAggrModel(ctx context.Context, cmd Command,
 		if ok {
 			status, err := a.store.Save(ctx, previousSnapshotEvent)
 			if err != nil {
-				return nil, false, fmt.Errorf("cannot save snapshot: %w", err)
+				return nil, nil, false, fmt.Errorf("cannot save snapshot: %w", err)
 			}
 			switch status {
 			case eventstore.SnapshotRequired:
-				return nil, false, fmt.Errorf("cannot need snapshot during store a snapshot")
+				return nil, nil, false, fmt.Errorf("cannot need snapshot during store a snapshot")
 			case eventstore.ConcurrencyException:
-				return nil, true, nil
+				return nil, nil, true, nil
 			}
 			newVersion++
 			a.createdSnapshot = previousSnapshotEvent
 		}
 	}
 
-	newEvents, err := amodel.HandleCommand(ctx, cmd, newVersion)
+	newEvents, response, err := amodel.HandleCommand(ctx, cmd, newVersion)
 	if err != nil {
-		return nil, false, fmt.Errorf("error occurred during command handling: %w", err)
+		return nil, nil, false, fmt.Errorf("error occurred during command handling: %w", err)
 	}
 	if newEvents == nil {
 		if a.createdSnapshot != nil && a.createdSnapshot.Version()+1 == newVersion {
 			events = append(events, a.createdSnapshot)
 			a.createdSnapshot = nil
 		}
-		return events, false, nil
+		return events, response, false, nil
 	}
 	status, err := a.store.Save(ctx, newEvents...)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot save events: %w", err)
+		return nil, nil, false, fmt.Errorf("cannot save events: %w", err)
 	}
 	switch status {
 	case eventstore.SnapshotRequired:
 		if previousSnapshotEvent == nil {
-			return nil, false, fmt.Errorf("cannot save events[%v]: snapshot is not supported", newEvents)
+			return nil, nil, false, fmt.Errorf("cannot save events[%v]: snapshot is not supported", newEvents)
 		}
 		if a.createdSnapshot != nil && a.createdSnapshot.Version()+1 == newEvents[0].Version() {
-			return nil, false, fmt.Errorf("cannot save events[%v]: snapshot[%v] follows created previous snapshot[%v]", newEvents, previousSnapshotEvent, a.createdSnapshot)
+			return nil, nil, false, fmt.Errorf("cannot save events[%v]: snapshot[%v] follows created previous snapshot[%v]", newEvents, previousSnapshotEvent, a.createdSnapshot)
 		}
 		status, err = a.store.Save(ctx, previousSnapshotEvent)
 		if err != nil {
-			return nil, false, fmt.Errorf("cannot save snapshot: %w", err)
+			return nil, nil, false, fmt.Errorf("cannot save snapshot: %w", err)
 		}
 		if status == eventstore.SnapshotRequired {
-			return nil, false, fmt.Errorf("cannot handle status need snapshot during save snapshot[%v]", previousSnapshotEvent)
+			return nil, nil, false, fmt.Errorf("cannot handle status need snapshot during save snapshot[%v]", previousSnapshotEvent)
 		}
 		a.createdSnapshot = previousSnapshotEvent
-		return nil, true, nil
+		return nil, nil, true, nil
 	case eventstore.ConcurrencyException:
-		return nil, true, nil
+		return nil, nil, true, nil
 	}
 	if a.createdSnapshot != nil && a.createdSnapshot.Version()+1 == newEvents[0].Version() {
 		events = append(events, a.createdSnapshot)
 		a.createdSnapshot = nil
-		return append(events, newEvents...), false, nil
+		return append(events, newEvents...), response, false, nil
 	}
-	return newEvents, false, nil
+	return newEvents, response, false, nil
 }
 
 // HandleCommand transforms command to a event, store and publish eventstore.
-func (a *Aggregate) HandleCommand(ctx context.Context, cmd Command) ([]eventstore.Event, error) {
+func (a *Aggregate) HandleCommand(ctx context.Context, cmd Command) ([]eventstore.Event, interface{}, error) {
 	firstIteration := true
 	for {
 		if !firstIteration {
 			err := handleRetry(ctx, a.retryFunc)
 			if err != nil {
-				return nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
+				return nil, nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
 			}
 		}
 
 		firstIteration = false
 		model, err := a.factoryModel(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
+			return nil, nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
 		}
 
 		amodel, err := newAggrModel(ctx, a.groupID, a.aggregateID, a.store, a.LogDebugfFunc, model)
 		if err != nil {
-			return nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
+			return nil, nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
 		}
 
-		events, concurrencyException, err := a.handleCommandWithAggrModel(ctx, cmd, amodel)
+		events, response, concurrencyException, err := a.handleCommandWithAggrModel(ctx, cmd, amodel)
 		if err != nil {
-			return nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
+			return nil, nil, fmt.Errorf("aggregate model cannot handle command: %w", err)
 		}
 		if concurrencyException {
 			continue
 		}
-		return events, nil
+		return events, response, nil
 	}
 }
 

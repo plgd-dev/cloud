@@ -126,15 +126,15 @@ func (e *ResourceLinksSnapshotTaken) Handle(ctx context.Context, iter eventstore
 	return iter.Err()
 }
 
-func (e *ResourceLinksSnapshotTaken) HandleCommand(ctx context.Context, cmd aggregate.Command, newVersion uint64) ([]eventstore.Event, error) {
+func (e *ResourceLinksSnapshotTaken) HandleCommand(ctx context.Context, cmd aggregate.Command, newVersion uint64) ([]eventstore.Event, interface{}, error) {
 	owner, err := grpc.OwnerFromMD(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid owner: %v", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "invalid owner: %v", err)
 	}
 	switch req := cmd.(type) {
 	case *commands.PublishResourceLinksRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
@@ -148,15 +148,19 @@ func (e *ResourceLinksSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 		}
 		err := e.HandleEventResourceLinksPublished(ctx, &rlp)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rlp}, nil
+		return []eventstore.Event{&rlp}, &commands.PublishResourceLinksResponse{
+			AuditContext:       ac,
+			DeviceId:           req.GetDeviceId(),
+			PublishedResources: rlp.GetResources(),
+		}, nil
 	case *commands.UnpublishResourceLinksRequest:
 		if newVersion == 0 {
-			return nil, status.Errorf(codes.NotFound, errInvalidVersion)
+			return nil, nil, status.Errorf(codes.NotFound, errInvalidVersion)
 		}
 		if req.CommandMetadata == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
@@ -169,13 +173,17 @@ func (e *ResourceLinksSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 		}
 		unpublished, err := e.HandleEventResourceLinksUnpublished(ctx, &rlu)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		rlu.Hrefs = unpublished
-		return []eventstore.Event{&rlu}, nil
+		return []eventstore.Event{&rlu}, &commands.UnpublishResourceLinksResponse{
+			AuditContext:     ac,
+			UnpublishedHrefs: rlu.GetHrefs(),
+			DeviceId:         req.GetDeviceId(),
+		}, nil
 	}
 
-	return nil, fmt.Errorf("unknown command")
+	return nil, nil, fmt.Errorf("unknown command")
 }
 
 func (e *ResourceLinksSnapshotTaken) TakeSnapshot(version uint64) (eventstore.Event, bool) {

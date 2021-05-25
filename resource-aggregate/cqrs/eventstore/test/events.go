@@ -205,11 +205,12 @@ func MakeResourceRetrieved(resourceId *commands.ResourceId, status commands.Stat
 }
 
 func MakeResourceStateSnapshotTaken(resourceId *commands.ResourceId, latestResourceChange *events.ResourceChanged, eventMetadata *events.EventMetadata, auditContext *commands.AuditContext) eventstore.EventUnmarshaler {
-	e := events.NewResourceStateSnapshotTaken()
-	e.ResourceId = resourceId
-	e.LatestResourceChange = latestResourceChange
-	e.EventMetadata = eventMetadata
-	e.AuditContext = auditContext
+	e := events.ResourceStateSnapshotTaken{
+		ResourceId:           resourceId,
+		LatestResourceChange: latestResourceChange,
+		EventMetadata:        eventMetadata,
+		AuditContext:         auditContext,
+	}
 
 	return eventstore.NewLoadedEvent(
 		e.GetEventMetadata().GetVersion(),
@@ -219,7 +220,7 @@ func MakeResourceStateSnapshotTaken(resourceId *commands.ResourceId, latestResou
 		true,
 		func(v interface{}) error {
 			if x, ok := v.(*events.ResourceStateSnapshotTaken); ok {
-				*x = *e
+				*x = e
 				return nil
 			}
 			return fmt.Errorf("cannot unmarshal event")

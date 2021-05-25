@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/plgd-dev/cloud/pkg/net/grpc"
 	"github.com/plgd-dev/go-coap/v2/message"
@@ -52,6 +53,11 @@ func (e *ResourceStateSnapshotTaken) IsSnapshot() bool {
 }
 
 func (e *ResourceStateSnapshotTaken) HandleEventResourceCreatePending(ctx context.Context, createPending *ResourceCreatePending) error {
+	deadline := time.Unix(0, createPending.GetDeadline())
+	if createPending.GetDeadline() != 0 && !deadline.IsZero() && time.Now().After(deadline) {
+		// command is expired
+		return nil
+	}
 	for _, event := range e.GetResourceCreatePendings() {
 		if event.GetAuditContext().GetCorrelationId() == createPending.GetAuditContext().GetCorrelationId() {
 			return fmt.Errorf("resource create pending with correlationId('%v') already exist", createPending.GetAuditContext().GetCorrelationId())
@@ -65,6 +71,12 @@ func (e *ResourceStateSnapshotTaken) HandleEventResourceCreatePending(ctx contex
 }
 
 func (e *ResourceStateSnapshotTaken) HandleEventResourceUpdatePending(ctx context.Context, updatePending *ResourceUpdatePending) error {
+	deadline := time.Unix(0, updatePending.GetDeadline())
+	if updatePending.GetDeadline() != 0 && !deadline.IsZero() && time.Now().After(deadline) {
+		// command is expired
+		return nil
+	}
+
 	for _, event := range e.GetResourceUpdatePendings() {
 		if event.GetAuditContext().GetCorrelationId() == updatePending.GetAuditContext().GetCorrelationId() {
 			return fmt.Errorf("resource update pending with correlationId('%v') already exist", updatePending.GetAuditContext().GetCorrelationId())
@@ -78,6 +90,12 @@ func (e *ResourceStateSnapshotTaken) HandleEventResourceUpdatePending(ctx contex
 }
 
 func (e *ResourceStateSnapshotTaken) HandleEventResourceRetrievePending(ctx context.Context, retrievePending *ResourceRetrievePending) error {
+	deadline := time.Unix(0, retrievePending.GetDeadline())
+	if retrievePending.GetDeadline() != 0 && !deadline.IsZero() && time.Now().After(deadline) {
+		// command is expired
+		return nil
+	}
+
 	for _, event := range e.GetResourceRetrievePendings() {
 		if event.GetAuditContext().GetCorrelationId() == retrievePending.GetAuditContext().GetCorrelationId() {
 			return fmt.Errorf("resource retrieve pending with correlationId('%v') already exist", retrievePending.GetAuditContext().GetCorrelationId())
@@ -90,6 +108,12 @@ func (e *ResourceStateSnapshotTaken) HandleEventResourceRetrievePending(ctx cont
 }
 
 func (e *ResourceStateSnapshotTaken) HandleEventResourceDeletePending(ctx context.Context, deletePending *ResourceDeletePending) error {
+	deadline := time.Unix(0, deletePending.GetDeadline())
+	if deletePending.GetDeadline() != 0 && !deadline.IsZero() && time.Now().After(deadline) {
+		// command is expired
+		return nil
+	}
+
 	for _, event := range e.GetResourceDeletePendings() {
 		if event.GetAuditContext().GetCorrelationId() == deletePending.GetAuditContext().GetCorrelationId() {
 			return fmt.Errorf("resource delete pending with correlationId('%v') already exist", deletePending.GetAuditContext().GetCorrelationId())
@@ -367,21 +391,36 @@ func convertContent(content *commands.Content, supportedContentType string) (new
 	}, nil
 }
 
-func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggregate.Command, newVersion uint64) ([]eventstore.Event, error) {
+func (e *ResourceStateSnapshotTakenModel) getDeadline(commandsExpiration time.Duration) time.Time {
+	if commandsExpiration <= 0 {
+		commandsExpiration = e.commandsExpiration
+	}
+
+	if commandsExpiration == 0 {
+		return time.Time{}
+	}
+
+	if commandsExpiration > e.commandsExpiration {
+		commandsExpiration = e.commandsExpiration
+	}
+	return time.Now().Add(commandsExpiration)
+}
+
+func (e *ResourceStateSnapshotTakenModel) HandleCommand(ctx context.Context, cmd aggregate.Command, newVersion uint64) ([]eventstore.Event, interface{}, error) {
 	owner, err := grpc.OwnerFromMD(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid owner: %v", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "invalid owner: %v", err)
 	}
 
 	// only NotifyResourceChangedRequest can have version 0
 	if _, ok := cmd.(*commands.NotifyResourceChangedRequest); !ok && newVersion == 0 {
-		return nil, status.Errorf(codes.NotFound, errInvalidVersion)
+		return nil, nil, status.Errorf(codes.NotFound, errInvalidVersion)
 	}
 
 	switch req := cmd.(type) {
 	case *commands.NotifyResourceChangedRequest:
 		if req.CommandMetadata == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
@@ -397,22 +436,26 @@ func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 		var ok bool
 		var err error
 		if ok, err = e.HandleEventResourceChanged(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		response := commands.NotifyResourceChangedResponse{
+			AuditContext: ac,
 		}
 		if ok {
-			return []eventstore.Event{&rc}, nil
+			return []eventstore.Event{&rc}, &response, nil
 		}
-		return nil, nil
+		return nil, &response, nil
 	case *commands.UpdateResourceRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
+		deadline := e.getDeadline(time.Duration(req.GetExpiration()) * time.Millisecond)
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
 		ac := commands.NewAuditContext(owner, req.GetCorrelationId())
 		content, err := convertContent(req.GetContent(), e.GetLatestResourceChange().GetContent().GetContentType())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		rc := ResourceUpdatePending{
@@ -420,16 +463,21 @@ func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 			ResourceInterface: req.GetResourceInterface(),
 			AuditContext:      ac,
 			EventMetadata:     em,
+			Deadline:          deadline.UnixNano(),
 			Content:           content,
 		}
 
 		if err = e.HandleEventResourceUpdatePending(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.UpdateResourceResponse{
+			Deadline:     deadline.UnixNano(),
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	case *commands.ConfirmResourceUpdateRequest:
 		if req.CommandMetadata == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
@@ -442,13 +490,17 @@ func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 			Status:        req.GetStatus(),
 		}
 		if err := e.HandleEventResourceUpdated(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.ConfirmResourceUpdateResponse{
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	case *commands.RetrieveResourceRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
+		deadline := e.getDeadline(time.Duration(req.GetExpiration()) * time.Millisecond)
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
 		ac := commands.NewAuditContext(owner, req.GetCorrelationId())
@@ -456,17 +508,22 @@ func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 		rc := ResourceRetrievePending{
 			ResourceId:        req.GetResourceId(),
 			ResourceInterface: req.GetResourceInterface(),
+			Deadline:          deadline.UnixNano(),
 			AuditContext:      ac,
 			EventMetadata:     em,
 		}
 
 		if err := e.HandleEventResourceRetrievePending(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.RetrieveResourceResponse{
+			Deadline:     deadline.UnixNano(),
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	case *commands.ConfirmResourceRetrieveRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
@@ -479,30 +536,39 @@ func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 			Status:        req.GetStatus(),
 		}
 		if err := e.HandleEventResourceRetrieved(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.ConfirmResourceRetrieveResponse{
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	case *commands.DeleteResourceRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
+		deadline := e.getDeadline(time.Duration(req.GetExpiration()) * time.Millisecond)
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
 		ac := commands.NewAuditContext(owner, req.GetCorrelationId())
 
 		rc := ResourceDeletePending{
 			ResourceId:    req.GetResourceId(),
+			Deadline:      deadline.UnixNano(),
 			AuditContext:  ac,
 			EventMetadata: em,
 		}
 
 		if err := e.HandleEventResourceDeletePending(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.DeleteResourceResponse{
+			Deadline:     deadline.UnixNano(),
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	case *commands.ConfirmResourceDeleteRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
@@ -515,34 +581,43 @@ func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 			Status:        req.GetStatus(),
 		}
 		if err := e.HandleEventResourceDeleted(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.ConfirmResourceDeleteResponse{
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	case *commands.CreateResourceRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
+		deadline := e.getDeadline(time.Duration(req.GetExpiration()) * time.Millisecond)
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
 		ac := commands.NewAuditContext(owner, req.GetCorrelationId())
 		content, err := convertContent(req.GetContent(), e.GetLatestResourceChange().GetContent().GetContentType())
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		rc := ResourceCreatePending{
 			ResourceId:    req.GetResourceId(),
 			Content:       content,
 			AuditContext:  ac,
 			EventMetadata: em,
+			Deadline:      deadline.UnixNano(),
 		}
 
 		if err := e.HandleEventResourceCreatePending(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.CreateResourceResponse{
+			Deadline:     deadline.UnixNano(),
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	case *commands.ConfirmResourceCreateRequest:
 		if req.GetCommandMetadata() == nil {
-			return nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
+			return nil, nil, status.Errorf(codes.InvalidArgument, errInvalidCommandMetadata)
 		}
 
 		em := MakeEventMeta(req.GetCommandMetadata().GetConnectionId(), req.GetCommandMetadata().GetSequence(), newVersion)
@@ -555,12 +630,15 @@ func (e *ResourceStateSnapshotTaken) HandleCommand(ctx context.Context, cmd aggr
 			Status:        req.GetStatus(),
 		}
 		if err := e.HandleEventResourceCreated(ctx, &rc); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []eventstore.Event{&rc}, nil
+		response := commands.ConfirmResourceCreateResponse{
+			AuditContext: ac,
+		}
+		return []eventstore.Event{&rc}, &response, nil
 	}
 
-	return nil, fmt.Errorf("unknown command")
+	return nil, nil, fmt.Errorf("unknown command")
 }
 
 func (e *ResourceStateSnapshotTaken) TakeSnapshot(version uint64) (eventstore.Event, bool) {
@@ -576,8 +654,16 @@ func (e *ResourceStateSnapshotTaken) TakeSnapshot(version uint64) (eventstore.Ev
 	}, true
 }
 
-func NewResourceStateSnapshotTaken() *ResourceStateSnapshotTaken {
-	return &ResourceStateSnapshotTaken{
-		EventMetadata: &EventMetadata{},
+type ResourceStateSnapshotTakenModel struct {
+	*ResourceStateSnapshotTaken
+	commandsExpiration time.Duration
+}
+
+func NewResourceStateSnapshotTaken(commandsExpiration time.Duration) *ResourceStateSnapshotTakenModel {
+	return &ResourceStateSnapshotTakenModel{
+		ResourceStateSnapshotTaken: &ResourceStateSnapshotTaken{
+			EventMetadata: &EventMetadata{},
+		},
+		commandsExpiration: commandsExpiration,
 	}
 }
