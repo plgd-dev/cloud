@@ -3,6 +3,8 @@ package test
 import (
 	"context"
 	"errors"
+	"reflect"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -65,6 +67,53 @@ func (eh *mockEventHandler) SetElement(groupId, aggregateId string, e mockEvent)
 		eh.events[groupId] = device
 	}
 	device[aggregateId] = append(device[aggregateId], e)
+}
+
+func (eh *mockEventHandler) Contains(event eventstore.Event) bool {
+	device, ok := eh.events[event.GroupID()]
+	if !ok {
+		return false
+	}
+	eventsDB, ok := device[event.AggregateID()]
+	if !ok {
+		return false
+	}
+
+	for _, eventDB := range eventsDB {
+		if reflect.DeepEqual(eventDB, event) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (eh *mockEventHandler) Equals(events []eventstore.Event) bool {
+	eventsMap := make(map[string]map[string][]eventstore.Event)
+	for _, event := range events {
+		device, ok := eventsMap[event.GroupID()]
+		if !ok {
+			device = make(map[string][]eventstore.Event)
+			eventsMap[event.GroupID()] = device
+		}
+		device[event.AggregateID()] = append(device[event.AggregateID()], event)
+	}
+
+	if len(eh.events) != len(eventsMap) {
+		return false
+	}
+
+	// sort slices by version
+	for deviceId, resourceEventsMap := range eventsMap {
+		for resourceId, resources := range resourceEventsMap {
+			sort.Slice(resources, func(i, j int) bool {
+				return resources[i].Version() < resources[j].Version()
+			})
+			eventsMap[deviceId][resourceId] = resources
+		}
+	}
+
+	return reflect.DeepEqual(eh.events, eventsMap)
 }
 
 func (eh *mockEventHandler) Handle(ctx context.Context, iter eventstore.Iter) error {
@@ -134,6 +183,40 @@ const aggregateID4 = "aggregateID4"
 const groupID1 = "deviceId1"
 const groupID2 = "deviceId2"
 const groupID3 = "deviceId3"
+
+func GetEventsTest(t *testing.T, ctx context.Context, store eventstore.EventStore) {
+	t.Log("testing GetEvents")
+
+	const timestamp1 = int64(0)
+	const timestamp2 = int64(2)
+	const timestamp3 = int64(4)
+
+	t.Log("insert events")
+	groupID1Events := getEvents(0, 5, false, groupID1, aggregateID1, timestamp1)
+	saveStatus, err := store.Save(ctx, groupID1Events...)
+	require.NoError(t, err)
+	require.Equal(t, eventstore.Ok, saveStatus)
+
+	groupID2Events := getEvents(0, 5, false, groupID2, aggregateID2, timestamp2)
+	saveStatus, err = store.Save(ctx, groupID2Events...)
+	require.NoError(t, err)
+	require.Equal(t, eventstore.Ok, saveStatus)
+
+	groupID3Events := getEvents(0, 5, false, groupID3, aggregateID3, timestamp3)
+	saveStatus, err = store.Save(ctx, groupID3Events...)
+	require.NoError(t, err)
+	require.Equal(t, eventstore.Ok, saveStatus)
+
+	allEvents := append(groupID1Events, groupID2Events...)
+	allEvents = append(allEvents, groupID3Events...)
+
+	t.Log("get all events")
+	saveEh := NewMockEventHandler()
+	store.GetEvents(ctx, []eventstore.GetEventsQuery{{}}, saveEh)
+	require.NoError(t, err)
+	require.True(t, saveEh.Equals(allEvents))
+
+}
 
 func emptySaveFailTest(t *testing.T, ctx context.Context, store eventstore.EventStore) {
 	t.Log("try save no events")

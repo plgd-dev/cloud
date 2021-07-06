@@ -17,6 +17,14 @@ type SnapshotQuery struct {
 	AggregateID string //filter to certain aggregateID, groupID is required
 }
 
+// Get events with given attributes.
+// All filtering options are optional, if none are given then all events are returned,
+type GetEventsQuery struct {
+	GroupID     string //filter by group ID, optional
+	AggregateID string //filter to certain aggregateID, optional
+	Timestamp   int64  //get events with timestamp larger or equal to given value, optional
+}
+
 type SaveStatus int
 
 const (
@@ -29,6 +37,8 @@ const (
 // EventStore provides interface over eventstore. More aggregates can be grouped by groupID,
 // but aggregateID of aggregates must be unique against whole DB.
 type EventStore interface {
+	// Get events from the eventstore
+	GetEvents(ctx context.Context, queries []GetEventsQuery, eventHandler Handler) error
 	// Save save events to eventstore.
 	// AggregateID, GroupID and EventType are required.
 	// All events within one Save operation shall have the same AggregateID and GroupID.
