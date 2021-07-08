@@ -12,7 +12,7 @@ type MockEventStore struct {
 	events map[string]map[string][]eventstore.EventUnmarshaler
 }
 
-func (s *MockEventStore) GetEvents(ctx context.Context, queries []eventstore.GetEventsQuery, eventHandler eventstore.Handler) error {
+func (s *MockEventStore) GetEvents(ctx context.Context, queries []eventstore.GetEventsQuery, timestamp int64, eventHandler eventstore.Handler) error {
 	return errors.New("not supported")
 }
 
